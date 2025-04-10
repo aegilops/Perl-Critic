@@ -22,7 +22,7 @@ use Perl::Critic::Utils::PPI qw< is_ppi_expression_or_generic_statement >;
 
 use Exporter 'import';
 
-our $VERSION = '1.152';
+our $VERSION = '1.156';
 
 #-----------------------------------------------------------------------------
 # Exportable symbols here.
@@ -207,11 +207,6 @@ Readonly::Scalar our $RIGHT_PAREN  => q{)};
 Readonly::Scalar our $EMPTY        => q{};
 Readonly::Scalar our $TRUE         => 1;
 Readonly::Scalar our $FALSE        => 0;
-
-#-----------------------------------------------------------------------------
-
-#TODO: Should this include punctuations vars?
-
 
 
 #-----------------------------------------------------------------------------
@@ -711,13 +706,19 @@ sub is_hash_key {
     return if !$parent;
     my $grandparent = $parent->parent();
     return if !$grandparent;
-    return 1 if $grandparent->isa('PPI::Structure::Subscript');
+    if ( $grandparent->isa('PPI::Structure::Subscript') ) {
+        # If followed by a non-(fat)comma, then it's not a hash slice,
+        # so a function call without parentheses.
+        return if $sib && !($sib->isa('PPI::Token::Operator')
+                            && ($sib eq $COMMA || $sib eq $FATCOMMA));
+        return 1;
+    }
 
     #Check declarative style: %hash = (foo => bar);
     return
         $sib
         && $sib->isa('PPI::Token::Operator')
-        && $sib eq '=>'
+        && $sib eq $FATCOMMA
     ;
 }
 
@@ -881,11 +882,11 @@ sub is_in_void_context {
                 $parent->isa('PPI::Structure::Block')
             and $token->statement()->snext_sibling();
 
-        my $grand_parent = $parent->parent();
-        if ($grand_parent) {
+        my $grandparent = $parent->parent();
+        if ($grandparent) {
             return if
                     $parent->isa('PPI::Structure::Block')
-                and not $grand_parent->isa('PPI::Statement::Compound');
+                and not $grandparent->isa('PPI::Statement::Compound');
         }
     }
 
